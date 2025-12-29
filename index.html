@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Starlit Romance - Static</title>
+    <title>Starry Night Romance</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Fonts -->
@@ -17,26 +17,22 @@
       body {
         margin: 0;
         overflow: hidden;
-        background-color: #0f172a; /* Slate 950 */
+        background-color: #0b1026; /* Deep Midnight Blue */
         font-family: 'Noto Serif SC', serif;
       }
       .font-dancing {
         font-family: 'Dancing Script', cursive;
       }
-      /* Animations */
-      @keyframes float {
-        0%, 100% { transform: translateY(0); }
-        50% { transform: translateY(-10px); }
-      }
-      .animate-float {
-        animation: float 3s ease-in-out infinite;
-      }
       .fade-in {
-        animation: fadeIn 0.5s ease-out forwards;
+        animation: fadeIn 0.8s ease-out forwards;
       }
       @keyframes fadeIn {
         from { opacity: 0; transform: translateY(10px); }
         to { opacity: 1; transform: translateY(0); }
+      }
+      /* Custom Text Shadow for visibility against complex background */
+      .text-glow {
+        text-shadow: 0 0 10px rgba(0,0,0,0.8), 0 0 20px rgba(0,0,0,0.5);
       }
     </style>
 <script type="importmap">
@@ -55,199 +51,254 @@
 </head>
 <body>
 
-    <!-- 1. Background Canvas -->
+    <!-- 1. Background Canvas (Van Gogh Style) -->
     <canvas id="starry-canvas" class="absolute inset-0 z-0 w-full h-full pointer-events-none"></canvas>
 
     <!-- 2. UI Layer -->
     <div id="ui-container" class="absolute top-10 left-1/2 transform -translate-x-1/2 z-20 w-full max-w-md px-4 transition-all duration-500">
-        <div class="bg-slate-900/40 backdrop-blur-md border border-white/10 rounded-2xl p-6 shadow-2xl text-center">
+        <div class="bg-slate-900/60 backdrop-blur-md border border-yellow-500/20 rounded-2xl p-6 shadow-2xl text-center ring-1 ring-white/10">
             
             <!-- State: IDLE -->
             <div id="state-idle" class="fade-in">
-                <h1 class="text-3xl text-white font-dancing mb-2">Make a Wish</h1>
-                <p class="text-slate-300 text-sm mb-6">
-                   流星划过天际之时，让星辰为你写下一首诗。
+                <h1 class="text-4xl text-yellow-100 font-dancing mb-2 text-glow">Starry Night</h1>
+                <p class="text-slate-200 text-sm mb-6 leading-relaxed">
+                   在文森特的星空下，<br/>让流动的星光为你写一首永恒的诗。
                 </p>
-                <button id="btn-generate" class="group relative inline-flex items-center justify-center px-8 py-3 text-lg font-medium text-white bg-indigo-600 rounded-full hover:bg-indigo-700 transition-all duration-300 ease-in-out hover:scale-105 hover:shadow-[0_0_20px_rgba(79,70,229,0.5)] cursor-pointer">
-                    <i data-lucide="sparkles" class="w-5 h-5 mr-2 animate-pulse"></i>
-                    <span>Capture the Moment</span>
+                <button id="btn-generate" class="group relative inline-flex items-center justify-center px-8 py-3 text-lg font-medium text-slate-900 bg-yellow-400 rounded-full hover:bg-yellow-300 transition-all duration-300 ease-in-out hover:scale-105 hover:shadow-[0_0_20px_rgba(250,204,21,0.6)] cursor-pointer ring-2 ring-yellow-200/50">
+                    <i data-lucide="paintbrush" class="w-5 h-5 mr-2"></i>
+                    <span>Paint a Wish</span>
                 </button>
             </div>
 
             <!-- State: GENERATING -->
             <div id="state-generating" class="hidden py-8 flex flex-col items-center justify-center">
-                <i data-lucide="loader-2" class="w-10 h-10 text-indigo-400 animate-spin mb-4 mx-auto"></i>
-                <p class="text-indigo-200 animate-pulse text-center mt-4">Consulting the stars...</p>
+                <div class="relative">
+                    <div class="absolute inset-0 bg-yellow-400 blur-xl opacity-20 animate-pulse"></div>
+                    <i data-lucide="loader-2" class="relative w-12 h-12 text-yellow-400 animate-spin mb-4 mx-auto"></i>
+                </div>
+                <p class="text-yellow-100 animate-pulse text-center mt-4 font-dancing text-xl">Weaving starlight...</p>
             </div>
 
             <!-- State: SUCCESS -->
             <div id="state-success" class="hidden">
-                <h2 id="poem-title" class="text-2xl text-indigo-300 font-serif mb-4 font-bold tracking-wide"></h2>
+                <h2 id="poem-title" class="text-2xl text-yellow-300 font-serif mb-4 font-bold tracking-wide text-glow"></h2>
                 <div class="relative mb-6">
-                    <i data-lucide="heart" class="absolute -top-4 -left-2 w-6 h-6 text-pink-500/50 animate-bounce"></i>
-                    <p id="poem-content" class="text-slate-100 whitespace-pre-line leading-relaxed font-serif text-lg italic opacity-90"></p>
-                    <i data-lucide="heart" class="absolute -bottom-4 -right-2 w-6 h-6 text-pink-500/50 animate-bounce delay-75"></i>
+                    <i data-lucide="star" class="absolute -top-4 -left-2 w-6 h-6 text-yellow-400 fill-yellow-400 animate-pulse"></i>
+                    <p id="poem-content" class="text-slate-100 whitespace-pre-line leading-relaxed font-serif text-lg italic opacity-95 text-glow shadow-black"></p>
+                    <i data-lucide="star" class="absolute -bottom-4 -right-2 w-5 h-5 text-yellow-400 fill-yellow-400 animate-pulse delay-100"></i>
                 </div>
-                <button id="btn-reset" class="mt-4 flex items-center justify-center mx-auto text-sm text-indigo-400 hover:text-indigo-300 transition-colors cursor-pointer">
-                    <i data-lucide="refresh-cw" class="w-4 h-4 mr-2"></i>
-                    Another Wish
+                <button id="btn-reset" class="mt-4 flex items-center justify-center mx-auto text-sm text-yellow-200/80 hover:text-yellow-200 transition-colors cursor-pointer border border-yellow-500/30 px-4 py-2 rounded-full hover:bg-yellow-500/10">
+                    <i data-lucide="rotate-ccw" class="w-4 h-4 mr-2"></i>
+                    Another Dream
                 </button>
             </div>
 
              <!-- State: ERROR -->
              <div id="state-error" class="hidden py-4">
-                <p class="text-red-400 mb-4">The stars were silent. Please check your API Key.</p>
-                <button id="btn-retry" class="text-sm text-indigo-400 underline cursor-pointer">Try Again</button>
+                <i data-lucide="alert-circle" class="w-8 h-8 text-red-400 mx-auto mb-2"></i>
+                <p id="error-msg" class="text-red-300 mb-4 text-sm">The stars are silent.</p>
+                <button id="btn-retry" class="text-sm text-yellow-400 underline cursor-pointer hover:text-yellow-300">Try Again</button>
             </div>
 
         </div>
     </div>
 
-    <!-- 3. Silhouette Layer (SVG) -->
-    <div class="absolute bottom-0 left-1/2 transform -translate-x-1/2 z-10 w-full max-w-2xl px-4 pointer-events-none">
-        <svg viewBox="0 0 500 200" xmlns="http://www.w3.org/2000/svg" class="w-full h-auto drop-shadow-2xl" preserveAspectRatio="xMidYMax slice">
-            <defs>
-                <filter id="glow">
-                    <feGaussianBlur stdDeviation="2.5" result="coloredBlur"/>
-                    <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
-                </filter>
-            </defs>
-            <path d="M0,200 Q150,150 250,160 T500,200 Z" fill="#020617" opacity="0.9"/>
-            <g transform="translate(200, 135) scale(0.6)">
-                <path d="M30 80 Q30 40 50 20 Q60 10 70 20 Q90 40 80 80 L90 120 L30 120 Z" fill="#000"/>
-                <circle cx="60" cy="20" r="12" fill="#000" />
-                <path d="M100 85 Q110 45 90 25 Q80 15 75 25 Q60 50 70 90 L60 120 L110 120 Z" fill="#000"/>
-                <circle cx="85" cy="22" r="11" fill="#000" />
-                <path d="M70 80 Q75 90 80 80" stroke="#000" strokeWidth="5"/>
+    <!-- 3. Silhouette Layer (Abstract Hills) -->
+    <div class="absolute bottom-0 left-0 w-full z-10 pointer-events-none">
+         <svg viewBox="0 0 1440 320" xmlns="http://www.w3.org/2000/svg" class="w-full h-auto drop-shadow-2xl opacity-90">
+             <path fill="#02040a" fill-opacity="1" d="M0,224L48,213.3C96,203,192,181,288,181.3C384,181,480,203,576,224C672,245,768,267,864,261.3C960,256,1056,224,1152,197.3C1248,171,1344,149,1392,138.7L1440,128L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path>
+             <!-- Cypress Tree approximation -->
+             <path d="M200,320 Q220,150 200,100 Q180,150 160,320 Z" fill="#000" />
+         </svg>
+    </div>
+    
+    <!-- Silhouette of Couple -->
+    <div class="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-10 pointer-events-none opacity-80">
+        <svg width="200" height="150" viewBox="0 0 200 150" xmlns="http://www.w3.org/2000/svg">
+            <g transform="scale(0.8)">
+                 <path d="M60 150 L60 100 Q60 80 80 85 Q90 80 100 85 Q120 80 120 100 L120 150 Z" fill="#05081c" />
+                 <circle cx="80" cy="80" r="10" fill="#05081c" />
+                 <circle cx="100" cy="82" r="9" fill="#05081c" />
             </g>
-            <path d="M100 180 l-2 -10 l2 10 l3 -8 l-3 8" stroke="#000" strokeWidth="1" />
-            <path d="M400 190 l-2 -8 l2 8 l3 -12 l-3 12" stroke="#000" strokeWidth="1" />
         </svg>
     </div>
-
-    <!-- Vignette Overlay -->
-    <div class="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_center,transparent_0%,rgba(15,23,42,0.8)_100%)]"></div>
-
-    <!-- CONFIGURATION SCRIPT -->
-    <script>
-        // ⚠️⚠️⚠️ IMPORTANT: REPLACE 'YOUR_API_KEY_HERE' WITH YOUR ACTUAL GOOGLE GEMINI API KEY ⚠️⚠️⚠️
-        // Since this is a static file running in the browser, we cannot use process.env securely.
-        // You must manually edit this file to add your key for the Generate feature to work.
-        window.process = {
-            env: {
-                API_KEY: 'YOUR_API_KEY_HERE' 
-            }
-        };
-    </script>
 
     <!-- APP LOGIC -->
     <script type="module">
         import { GoogleGenAI, Type } from "https://esm.sh/@google/genai@0.1.0";
 
         // Initialize Lucide Icons
-        lucide.createIcons();
+        try {
+            lucide.createIcons();
+        } catch (e) {
+            console.warn("Icons failed to load", e);
+        }
 
-        /* ================= CANVAS LOGIC ================= */
+        /* ================= VAN GOGH CANVAS ENGINE ================= */
         const canvas = document.getElementById('starry-canvas');
         const ctx = canvas.getContext('2d');
         let width, height;
-        const stars = [];
-        const meteors = [];
-        const maxMeteors = 5;
+        let particles = [];
+        let stars = [];
+        let time = 0;
+
+        // Configuration for "Starry Night" feel
+        const CONFIG = {
+            particleCount: 800,
+            starCount: 15,
+            bgTop: '#0b1026',
+            bgBottom: '#233253',
+            windColors: ['#3e5f8a', '#5b84b1', '#8fbde3', '#2b3a67'], // Blues and cyans
+            starColors: ['#fcd34d', '#fbbf24', '#f59e0b'], // Yellows and Oranges
+        };
 
         function resize() {
             width = window.innerWidth;
             height = window.innerHeight;
             canvas.width = width;
             canvas.height = height;
+            init();
         }
 
-        function createStar() {
-            return {
-                x: Math.random() * width,
-                y: Math.random() * height,
-                radius: Math.random() * 1.5,
-                alpha: Math.random(),
-                twinkleSpeed: Math.random() * 0.02 + 0.005
-            };
+        class WindParticle {
+            constructor() {
+                this.reset();
+                // Randomize start position to fill screen immediately
+                this.x = Math.random() * width;
+                this.y = Math.random() * height;
+            }
+
+            reset() {
+                this.x = Math.random() * width;
+                this.y = Math.random() * height;
+                this.life = Math.random() * 100 + 50;
+                this.speed = Math.random() * 0.5 + 0.2;
+                this.angle = Math.random() * Math.PI * 2;
+                this.color = CONFIG.windColors[Math.floor(Math.random() * CONFIG.windColors.length)];
+                this.width = Math.random() * 2 + 0.5;
+            }
+
+            update() {
+                // Flow field logic: angle depends on position (creates swirls)
+                const scale = 0.002;
+                const angleNoise = (Math.sin(this.x * scale) + Math.cos(this.y * scale * 1.5)) * Math.PI;
+                
+                // Van Gogh turbulence
+                this.angle += (angleNoise - this.angle) * 0.1;
+
+                this.x += Math.cos(this.angle) * this.speed + 0.2; // Slight bias to right
+                this.y += Math.sin(this.angle) * this.speed;
+                
+                this.life--;
+
+                if (this.life <= 0 || this.x > width || this.x < 0 || this.y > height || this.y < 0) {
+                    this.reset();
+                }
+            }
+
+            draw(ctx) {
+                ctx.beginPath();
+                // Draw short "brush strokes"
+                ctx.moveTo(this.x, this.y);
+                const tailLen = 10 * this.speed;
+                ctx.lineTo(this.x - Math.cos(this.angle) * tailLen, this.y - Math.sin(this.angle) * tailLen);
+                ctx.strokeStyle = this.color;
+                ctx.lineWidth = this.width;
+                ctx.lineCap = 'round';
+                ctx.globalAlpha = 0.6;
+                ctx.stroke();
+                ctx.globalAlpha = 1.0;
+            }
         }
 
-        function createMeteor() {
-            return {
-                x: Math.random() * width + width * 0.5,
-                y: Math.random() * height * 0.5 - height * 0.2,
-                length: Math.random() * 80 + 150,
-                speed: Math.random() * 10 + 15,
-                angle: Math.PI / 4 + (Math.random() * 0.2 - 0.1),
-                opacity: 1
-            };
+        class VanGoghStar {
+            constructor() {
+                this.x = Math.random() * width;
+                this.y = Math.random() * height * 0.6; // Top 60% only
+                this.radius = Math.random() * 4 + 2;
+                this.color = CONFIG.starColors[Math.floor(Math.random() * CONFIG.starColors.length)];
+                this.pulseOffset = Math.random() * Math.PI * 2;
+            }
+
+            draw(ctx, t) {
+                // Glow rings (Dashed)
+                const pulse = Math.sin(t * 2 + this.pulseOffset);
+                
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                
+                // Core
+                ctx.beginPath();
+                ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = this.color;
+                ctx.fill();
+                ctx.shadowBlur = 0;
+
+                // Rings (Brush strokes)
+                ctx.strokeStyle = this.color;
+                ctx.globalAlpha = 0.3;
+                const rings = 3;
+                for (let i = 1; i <= rings; i++) {
+                    ctx.beginPath();
+                    const r = this.radius * 2 * i + pulse * 2;
+                    ctx.setLineDash([5, 10]); // Dashed lines
+                    ctx.lineDashOffset = -t * 10 * (i % 2 === 0 ? 1 : -1); // Rotate rings
+                    ctx.arc(0, 0, r, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+
+                ctx.restore();
+            }
         }
 
-        function initStars() {
-            for(let i=0; i<300; i++) stars.push(createStar());
+        function init() {
+            particles = [];
+            stars = [];
+            for (let i = 0; i < CONFIG.particleCount; i++) {
+                particles.push(new WindParticle());
+            }
+            for (let i = 0; i < CONFIG.starCount; i++) {
+                stars.push(new VanGoghStar());
+            }
         }
 
         function animate() {
-            // Clear / Trail
-            ctx.fillStyle = 'linear-gradient(to bottom, #0f172a, #1e1b4b)';
+            // Semi-transparent clear for trails? No, complete repaint for brush style usually better, 
+            // but let's do a dark fade to keep colors rich.
+            // Create Gradient Background
+            const grad = ctx.createLinearGradient(0, 0, 0, height);
+            grad.addColorStop(0, CONFIG.bgTop);
+            grad.addColorStop(1, CONFIG.bgBottom);
+            ctx.fillStyle = grad;
             ctx.fillRect(0, 0, width, height);
 
-            // Draw Stars
-            stars.forEach(star => {
-                star.alpha += star.twinkleSpeed;
-                if (star.alpha > 1 || star.alpha < 0.2) star.twinkleSpeed = -star.twinkleSpeed;
-                
-                ctx.beginPath();
-                ctx.arc(star.x, star.y, star.radius, 0, Math.PI * 2);
-                ctx.fillStyle = `rgba(255, 255, 255, ${star.alpha})`;
-                ctx.fill();
+            time += 0.01;
+
+            // Draw Wind
+            particles.forEach(p => {
+                p.update();
+                p.draw(ctx);
             });
 
-            // Draw Meteors
-            if (Math.random() < 0.02 && meteors.length < maxMeteors) {
-                meteors.push(createMeteor());
-            }
+            // Draw Stars
+            stars.forEach(s => s.draw(ctx, time));
 
-            for (let i = meteors.length - 1; i >= 0; i--) {
-                const m = meteors[i];
-                const endX = m.x - Math.cos(m.angle) * m.length;
-                const endY = m.y + Math.sin(m.angle) * m.length;
-
-                const g = ctx.createLinearGradient(m.x, m.y, endX, endY);
-                g.addColorStop(0, `rgba(255, 255, 255, ${m.opacity})`);
-                g.addColorStop(1, `rgba(255, 255, 255, 0)`);
-
-                ctx.beginPath();
-                ctx.moveTo(m.x, m.y);
-                ctx.lineTo(endX, endY);
-                ctx.strokeStyle = g;
-                ctx.lineWidth = 2;
-                ctx.lineCap = 'round';
-                ctx.stroke();
-
-                m.x -= Math.cos(m.angle) * m.speed;
-                m.y += Math.sin(m.angle) * m.speed;
-                m.opacity -= 0.01;
-
-                if (m.x < -100 || m.y > height + 100 || m.opacity <= 0) {
-                    meteors.splice(i, 1);
-                }
-            }
             requestAnimationFrame(animate);
         }
 
-        // Start Canvas
-        resize();
-        window.addEventListener('resize', resize);
-        initStars();
-        animate();
-
         /* ================= GEMINI LOGIC ================= */
+        // Configuration
+        // ⚠️⚠️⚠️ PLEASE PASTE YOUR API KEY BELOW ⚠️⚠️⚠️
+        const API_KEY = 'YOUR_API_KEY_HERE'; 
+        
         const els = {
             idle: document.getElementById('state-idle'),
             generating: document.getElementById('state-generating'),
             success: document.getElementById('state-success'),
             error: document.getElementById('state-error'),
+            errorMsg: document.getElementById('error-msg'),
             poemTitle: document.getElementById('poem-title'),
             poemContent: document.getElementById('poem-content'),
             btnGenerate: document.getElementById('btn-generate'),
@@ -256,35 +307,40 @@
         };
 
         function setView(view) {
+            // Hide all
             ['idle', 'generating', 'success', 'error'].forEach(v => {
+                const el = els[v];
                 if (v === view) {
-                    els[v].classList.remove('hidden');
-                    els[v].classList.add('fade-in');
+                    el.classList.remove('hidden');
+                    el.classList.add('fade-in');
                 } else {
-                    els[v].classList.add('hidden');
-                    els[v].classList.remove('fade-in');
+                    el.classList.add('hidden');
+                    el.classList.remove('fade-in');
                 }
             });
         }
 
         async function generatePoem() {
-            setView('generating');
+            console.log("Generate clicked...");
             
-            const apiKey = window.process.env.API_KEY;
-            
-            // Basic check if user forgot to replace the key
-            if (!apiKey || apiKey === 'YOUR_API_KEY_HERE') {
-                console.error("Please edit index.html and insert your Gemini API Key.");
-                alert("Please edit the index.html file and add your Google Gemini API Key in line 118.");
+            // 1. Validation
+            if (!API_KEY || API_KEY.includes('YOUR_API_KEY')) {
+                els.errorMsg.innerText = "Please open the HTML file and set your API_KEY in the code (Line 164).";
                 setView('error');
                 return;
             }
 
+            setView('generating');
+
             try {
-                const ai = new GoogleGenAI({ apiKey });
+                // 2. Client Init
+                const ai = new GoogleGenAI({ apiKey: API_KEY });
+                
+                // 3. API Call
+                // Using gemini-2.5-flash for speed or pro for quality.
                 const response = await ai.models.generateContent({
                     model: "gemini-3-flash-preview",
-                    contents: "Write a short, deeply romantic poem in Chinese (with a title) about eternal love and shooting stars. The tone should be emotional, beautiful, and poetic.",
+                    contents: "Write a short, deeply romantic poem in Chinese (with a title) inspired by Van Gogh's 'The Starry Night'. The tone should be swirling, emotional, and eternal.",
                     config: {
                         responseMimeType: "application/json",
                         responseSchema: {
@@ -297,25 +353,40 @@
                         }
                     }
                 });
+
+                // 4. Parsing
+                console.log("Response received", response);
+                const text = response.text;
+                const data = JSON.parse(text);
                 
-                const data = JSON.parse(response.text);
                 els.poemTitle.textContent = data.title;
                 els.poemContent.textContent = data.content;
                 setView('success');
 
             } catch (error) {
-                console.error(error);
-                // Fallback for demo purposes if API fails
-                els.poemTitle.textContent = "星空下的约定";
-                els.poemContent.textContent = "流星划过天际的瞬间，\n是你我眼眸中永恒的誓言。\n(API Error: check console)";
-                setView('success'); 
+                console.error("Gemini Error:", error);
+                
+                let msg = "The stars were silent. Check console for details.";
+                if (error.message && error.message.includes("403")) msg = "Invalid API Key.";
+                if (error.message && error.message.includes("Failed to fetch")) msg = "Network error. Check your connection.";
+
+                els.errorMsg.innerText = msg;
+                setView('error');
             }
         }
 
-        /* ================= EVENTS ================= */
-        els.btnGenerate.addEventListener('click', generatePoem);
-        els.btnReset.addEventListener('click', () => setView('idle'));
-        els.btnRetry.addEventListener('click', () => setView('idle'));
+        /* ================= STARTUP ================= */
+        // Listeners
+        if (els.btnGenerate) els.btnGenerate.addEventListener('click', generatePoem);
+        if (els.btnReset) els.btnReset.addEventListener('click', () => setView('idle'));
+        if (els.btnRetry) els.btnRetry.addEventListener('click', () => setView('idle'));
+
+        // Start Canvas
+        window.addEventListener('resize', resize);
+        resize(); // Inits and starts animation
+        animate();
+
+        console.log("Starry Night loaded.");
 
     </script>
 </body>
