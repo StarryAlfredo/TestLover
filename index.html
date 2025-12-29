@@ -1,45 +1,322 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
+<head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Starlit Romance</title>
+    <title>Starlit Romance - Static</title>
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@400;700&family=Noto+Serif+SC:wght@300;500;700&display=swap" rel="stylesheet">
+    <!-- Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
     <style>
       body {
         margin: 0;
         overflow: hidden;
-        background-color: #0f172a;
+        background-color: #0f172a; /* Slate 950 */
         font-family: 'Noto Serif SC', serif;
       }
-      /* Custom scrollbar for webkit */
-      ::-webkit-scrollbar {
-        width: 6px;
+      .font-dancing {
+        font-family: 'Dancing Script', cursive;
       }
-      ::-webkit-scrollbar-track {
-        background: transparent;
+      /* Animations */
+      @keyframes float {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-10px); }
       }
-      ::-webkit-scrollbar-thumb {
-        background: rgba(255, 255, 255, 0.2);
-        border-radius: 3px;
+      .animate-float {
+        animation: float 3s ease-in-out infinite;
+      }
+      .fade-in {
+        animation: fadeIn 0.5s ease-out forwards;
+      }
+      @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
       }
     </style>
-  <script type="importmap">
+<script type="importmap">
 {
   "imports": {
     "react": "https://esm.sh/react@^19.2.3",
     "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
     "react/": "https://esm.sh/react@^19.2.3/",
     "@google/genai": "https://esm.sh/@google/genai@^1.34.0",
-    "lucide-react": "https://esm.sh/lucide-react@^0.562.0"
+    "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
+    "vite": "https://esm.sh/vite@^7.3.0",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2"
   }
 }
 </script>
 </head>
-  <body>
-    <div id="root"></div>
-  </body>
+<body>
+
+    <!-- 1. Background Canvas -->
+    <canvas id="starry-canvas" class="absolute inset-0 z-0 w-full h-full pointer-events-none"></canvas>
+
+    <!-- 2. UI Layer -->
+    <div id="ui-container" class="absolute top-10 left-1/2 transform -translate-x-1/2 z-20 w-full max-w-md px-4 transition-all duration-500">
+        <div class="bg-slate-900/40 backdrop-blur-md border border-white/10 rounded-2xl p-6 shadow-2xl text-center">
+            
+            <!-- State: IDLE -->
+            <div id="state-idle" class="fade-in">
+                <h1 class="text-3xl text-white font-dancing mb-2">Make a Wish</h1>
+                <p class="text-slate-300 text-sm mb-6">
+                   流星划过天际之时，让星辰为你写下一首诗。
+                </p>
+                <button id="btn-generate" class="group relative inline-flex items-center justify-center px-8 py-3 text-lg font-medium text-white bg-indigo-600 rounded-full hover:bg-indigo-700 transition-all duration-300 ease-in-out hover:scale-105 hover:shadow-[0_0_20px_rgba(79,70,229,0.5)] cursor-pointer">
+                    <i data-lucide="sparkles" class="w-5 h-5 mr-2 animate-pulse"></i>
+                    <span>Capture the Moment</span>
+                </button>
+            </div>
+
+            <!-- State: GENERATING -->
+            <div id="state-generating" class="hidden py-8 flex flex-col items-center justify-center">
+                <i data-lucide="loader-2" class="w-10 h-10 text-indigo-400 animate-spin mb-4 mx-auto"></i>
+                <p class="text-indigo-200 animate-pulse text-center mt-4">Consulting the stars...</p>
+            </div>
+
+            <!-- State: SUCCESS -->
+            <div id="state-success" class="hidden">
+                <h2 id="poem-title" class="text-2xl text-indigo-300 font-serif mb-4 font-bold tracking-wide"></h2>
+                <div class="relative mb-6">
+                    <i data-lucide="heart" class="absolute -top-4 -left-2 w-6 h-6 text-pink-500/50 animate-bounce"></i>
+                    <p id="poem-content" class="text-slate-100 whitespace-pre-line leading-relaxed font-serif text-lg italic opacity-90"></p>
+                    <i data-lucide="heart" class="absolute -bottom-4 -right-2 w-6 h-6 text-pink-500/50 animate-bounce delay-75"></i>
+                </div>
+                <button id="btn-reset" class="mt-4 flex items-center justify-center mx-auto text-sm text-indigo-400 hover:text-indigo-300 transition-colors cursor-pointer">
+                    <i data-lucide="refresh-cw" class="w-4 h-4 mr-2"></i>
+                    Another Wish
+                </button>
+            </div>
+
+             <!-- State: ERROR -->
+             <div id="state-error" class="hidden py-4">
+                <p class="text-red-400 mb-4">The stars were silent. Please check your API Key.</p>
+                <button id="btn-retry" class="text-sm text-indigo-400 underline cursor-pointer">Try Again</button>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- 3. Silhouette Layer (SVG) -->
+    <div class="absolute bottom-0 left-1/2 transform -translate-x-1/2 z-10 w-full max-w-2xl px-4 pointer-events-none">
+        <svg viewBox="0 0 500 200" xmlns="http://www.w3.org/2000/svg" class="w-full h-auto drop-shadow-2xl" preserveAspectRatio="xMidYMax slice">
+            <defs>
+                <filter id="glow">
+                    <feGaussianBlur stdDeviation="2.5" result="coloredBlur"/>
+                    <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
+                </filter>
+            </defs>
+            <path d="M0,200 Q150,150 250,160 T500,200 Z" fill="#020617" opacity="0.9"/>
+            <g transform="translate(200, 135) scale(0.6)">
+                <path d="M30 80 Q30 40 50 20 Q60 10 70 20 Q90 40 80 80 L90 120 L30 120 Z" fill="#000"/>
+                <circle cx="60" cy="20" r="12" fill="#000" />
+                <path d="M100 85 Q110 45 90 25 Q80 15 75 25 Q60 50 70 90 L60 120 L110 120 Z" fill="#000"/>
+                <circle cx="85" cy="22" r="11" fill="#000" />
+                <path d="M70 80 Q75 90 80 80" stroke="#000" strokeWidth="5"/>
+            </g>
+            <path d="M100 180 l-2 -10 l2 10 l3 -8 l-3 8" stroke="#000" strokeWidth="1" />
+            <path d="M400 190 l-2 -8 l2 8 l3 -12 l-3 12" stroke="#000" strokeWidth="1" />
+        </svg>
+    </div>
+
+    <!-- Vignette Overlay -->
+    <div class="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_center,transparent_0%,rgba(15,23,42,0.8)_100%)]"></div>
+
+    <!-- CONFIGURATION SCRIPT -->
+    <script>
+        // ⚠️⚠️⚠️ IMPORTANT: REPLACE 'YOUR_API_KEY_HERE' WITH YOUR ACTUAL GOOGLE GEMINI API KEY ⚠️⚠️⚠️
+        // Since this is a static file running in the browser, we cannot use process.env securely.
+        // You must manually edit this file to add your key for the Generate feature to work.
+        window.process = {
+            env: {
+                API_KEY: 'YOUR_API_KEY_HERE' 
+            }
+        };
+    </script>
+
+    <!-- APP LOGIC -->
+    <script type="module">
+        import { GoogleGenAI, Type } from "https://esm.sh/@google/genai@0.1.0";
+
+        // Initialize Lucide Icons
+        lucide.createIcons();
+
+        /* ================= CANVAS LOGIC ================= */
+        const canvas = document.getElementById('starry-canvas');
+        const ctx = canvas.getContext('2d');
+        let width, height;
+        const stars = [];
+        const meteors = [];
+        const maxMeteors = 5;
+
+        function resize() {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            canvas.width = width;
+            canvas.height = height;
+        }
+
+        function createStar() {
+            return {
+                x: Math.random() * width,
+                y: Math.random() * height,
+                radius: Math.random() * 1.5,
+                alpha: Math.random(),
+                twinkleSpeed: Math.random() * 0.02 + 0.005
+            };
+        }
+
+        function createMeteor() {
+            return {
+                x: Math.random() * width + width * 0.5,
+                y: Math.random() * height * 0.5 - height * 0.2,
+                length: Math.random() * 80 + 150,
+                speed: Math.random() * 10 + 15,
+                angle: Math.PI / 4 + (Math.random() * 0.2 - 0.1),
+                opacity: 1
+            };
+        }
+
+        function initStars() {
+            for(let i=0; i<300; i++) stars.push(createStar());
+        }
+
+        function animate() {
+            // Clear / Trail
+            ctx.fillStyle = 'linear-gradient(to bottom, #0f172a, #1e1b4b)';
+            ctx.fillRect(0, 0, width, height);
+
+            // Draw Stars
+            stars.forEach(star => {
+                star.alpha += star.twinkleSpeed;
+                if (star.alpha > 1 || star.alpha < 0.2) star.twinkleSpeed = -star.twinkleSpeed;
+                
+                ctx.beginPath();
+                ctx.arc(star.x, star.y, star.radius, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(255, 255, 255, ${star.alpha})`;
+                ctx.fill();
+            });
+
+            // Draw Meteors
+            if (Math.random() < 0.02 && meteors.length < maxMeteors) {
+                meteors.push(createMeteor());
+            }
+
+            for (let i = meteors.length - 1; i >= 0; i--) {
+                const m = meteors[i];
+                const endX = m.x - Math.cos(m.angle) * m.length;
+                const endY = m.y + Math.sin(m.angle) * m.length;
+
+                const g = ctx.createLinearGradient(m.x, m.y, endX, endY);
+                g.addColorStop(0, `rgba(255, 255, 255, ${m.opacity})`);
+                g.addColorStop(1, `rgba(255, 255, 255, 0)`);
+
+                ctx.beginPath();
+                ctx.moveTo(m.x, m.y);
+                ctx.lineTo(endX, endY);
+                ctx.strokeStyle = g;
+                ctx.lineWidth = 2;
+                ctx.lineCap = 'round';
+                ctx.stroke();
+
+                m.x -= Math.cos(m.angle) * m.speed;
+                m.y += Math.sin(m.angle) * m.speed;
+                m.opacity -= 0.01;
+
+                if (m.x < -100 || m.y > height + 100 || m.opacity <= 0) {
+                    meteors.splice(i, 1);
+                }
+            }
+            requestAnimationFrame(animate);
+        }
+
+        // Start Canvas
+        resize();
+        window.addEventListener('resize', resize);
+        initStars();
+        animate();
+
+        /* ================= GEMINI LOGIC ================= */
+        const els = {
+            idle: document.getElementById('state-idle'),
+            generating: document.getElementById('state-generating'),
+            success: document.getElementById('state-success'),
+            error: document.getElementById('state-error'),
+            poemTitle: document.getElementById('poem-title'),
+            poemContent: document.getElementById('poem-content'),
+            btnGenerate: document.getElementById('btn-generate'),
+            btnReset: document.getElementById('btn-reset'),
+            btnRetry: document.getElementById('btn-retry')
+        };
+
+        function setView(view) {
+            ['idle', 'generating', 'success', 'error'].forEach(v => {
+                if (v === view) {
+                    els[v].classList.remove('hidden');
+                    els[v].classList.add('fade-in');
+                } else {
+                    els[v].classList.add('hidden');
+                    els[v].classList.remove('fade-in');
+                }
+            });
+        }
+
+        async function generatePoem() {
+            setView('generating');
+            
+            const apiKey = window.process.env.API_KEY;
+            
+            // Basic check if user forgot to replace the key
+            if (!apiKey || apiKey === 'YOUR_API_KEY_HERE') {
+                console.error("Please edit index.html and insert your Gemini API Key.");
+                alert("Please edit the index.html file and add your Google Gemini API Key in line 118.");
+                setView('error');
+                return;
+            }
+
+            try {
+                const ai = new GoogleGenAI({ apiKey });
+                const response = await ai.models.generateContent({
+                    model: "gemini-3-flash-preview",
+                    contents: "Write a short, deeply romantic poem in Chinese (with a title) about eternal love and shooting stars. The tone should be emotional, beautiful, and poetic.",
+                    config: {
+                        responseMimeType: "application/json",
+                        responseSchema: {
+                            type: Type.OBJECT,
+                            properties: {
+                                title: { type: Type.STRING },
+                                content: { type: Type.STRING }
+                            },
+                            required: ["title", "content"]
+                        }
+                    }
+                });
+                
+                const data = JSON.parse(response.text);
+                els.poemTitle.textContent = data.title;
+                els.poemContent.textContent = data.content;
+                setView('success');
+
+            } catch (error) {
+                console.error(error);
+                // Fallback for demo purposes if API fails
+                els.poemTitle.textContent = "星空下的约定";
+                els.poemContent.textContent = "流星划过天际的瞬间，\n是你我眼眸中永恒的誓言。\n(API Error: check console)";
+                setView('success'); 
+            }
+        }
+
+        /* ================= EVENTS ================= */
+        els.btnGenerate.addEventListener('click', generatePoem);
+        els.btnReset.addEventListener('click', () => setView('idle'));
+        els.btnRetry.addEventListener('click', () => setView('idle'));
+
+    </script>
+</body>
 </html>
