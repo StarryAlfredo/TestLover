@@ -1,392 +1,627 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Starry Night Romance</title>
-    <!-- Tailwind CSS -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gesture Controlled Christmas Tree</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@400;700&family=Noto+Serif+SC:wght@300;500;700&display=swap" rel="stylesheet">
-    <!-- Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
-    
     <style>
-      body {
-        margin: 0;
-        overflow: hidden;
-        background-color: #0b1026; /* Deep Midnight Blue */
-        font-family: 'Noto Serif SC', serif;
-      }
-      .font-dancing {
-        font-family: 'Dancing Script', cursive;
-      }
-      .fade-in {
-        animation: fadeIn 0.8s ease-out forwards;
-      }
-      @keyframes fadeIn {
-        from { opacity: 0; transform: translateY(10px); }
-        to { opacity: 1; transform: translateY(0); }
-      }
-      /* Custom Text Shadow for visibility against complex background */
-      .text-glow {
-        text-shadow: 0 0 10px rgba(0,0,0,0.8), 0 0 20px rgba(0,0,0,0.5);
-      }
+        body { margin: 0; overflow: hidden; background-color: #050505; color: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        #canvas-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+        #video-feed { position: absolute; bottom: 20px; right: 20px; width: 160px; height: 120px; border-radius: 12px; transform: scaleX(-1); border: 2px solid rgba(255, 215, 0, 0.5); z-index: 10; opacity: 0.8; object-fit: cover; }
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 20; pointer-events: none; }
+        .pointer-events-auto { pointer-events: auto; }
+        
+        /* Loading Overlay */
+        #loader { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 50; display: flex; flex-direction: column; justify-content: center; align-items: center; transition: opacity 0.5s; }
+        .spinner { width: 50px; height: 50px; border: 3px solid rgba(255,215,0,0.3); border-radius: 50%; border-top-color: #ffd700; animation: spin 1s ease-in-out infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Status Indicator */
+        .glass-panel { background: rgba(0, 20, 10, 0.6); backdrop-filter: blur(10px); border: 1px solid rgba(255, 215, 0, 0.2); box-shadow: 0 0 15px rgba(255, 215, 0, 0.1); }
+        .status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 8px; box-shadow: 0 0 5px currentColor; }
+        .dot-red { background-color: #ff4444; color: #ff4444; }
+        .dot-green { background-color: #00ff88; color: #00ff88; }
+        .dot-gold { background-color: #ffd700; color: #ffd700; }
     </style>
-<script type="importmap">
-{
-  "imports": {
-    "react": "https://esm.sh/react@^19.2.3",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "react/": "https://esm.sh/react@^19.2.3/",
-    "@google/genai": "https://esm.sh/@google/genai@^1.34.0",
-    "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
-    "vite": "https://esm.sh/vite@^7.3.0",
-    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2"
-  }
-}
-</script>
+    
+    <!-- Three.js Import Map -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+    
+    <!-- MediaPipe -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
 </head>
 <body>
 
-    <!-- 1. Background Canvas (Van Gogh Style) -->
-    <canvas id="starry-canvas" class="absolute inset-0 z-0 w-full h-full pointer-events-none"></canvas>
+    <!-- Loading Screen -->
+    <div id="loader">
+        <div class="spinner mb-4"></div>
+        <h2 class="text-xl text-yellow-500 font-light tracking-widest">INITIALIZING MAGIC</h2>
+        <p class="text-xs text-gray-500 mt-2">正在启动视觉引擎...</p>
+    </div>
 
-    <!-- 2. UI Layer -->
-    <div id="ui-container" class="absolute top-10 left-1/2 transform -translate-x-1/2 z-20 w-full max-w-md px-4 transition-all duration-500">
-        <div class="bg-slate-900/60 backdrop-blur-md border border-yellow-500/20 rounded-2xl p-6 shadow-2xl text-center ring-1 ring-white/10">
+    <!-- UI Overlay -->
+    <div id="ui-layer" class="p-6 flex flex-col justify-between">
+        
+        <!-- Header -->
+        <div class="flex justify-between items-start">
+            <div class="glass-panel p-4 rounded-lg pointer-events-auto max-w-sm">
+                <h1 class="text-2xl font-bold text-yellow-400 mb-1" style="text-shadow: 0 0 10px rgba(255,215,0,0.5);">🎄 Gesture Tree</h1>
+                <p class="text-sm text-gray-300 mb-4">哑光绿 · 辉金 · 圣诞红</p>
+                
+                <div class="space-y-2 text-xs text-gray-400">
+                    <div class="flex items-center"><span class="w-4">✊</span> 握拳：聚合 (圣诞树)</div>
+                    <div class="flex items-center"><span class="w-4">🖐</span> 张开：散开 (星云)</div>
+                    <div class="flex items-center"><span class="w-4">👋</span> 移动：旋转视角</div>
+                    <div class="flex items-center"><span class="w-4">👌</span> 捏合：抓取照片</div>
+                </div>
+
+                <div class="mt-4 pt-4 border-t border-white/10">
+                    <label class="cursor-pointer bg-yellow-600/20 hover:bg-yellow-600/40 text-yellow-300 border border-yellow-500/50 px-3 py-1.5 rounded transition text-xs flex items-center justify-center gap-2">
+                        <span>📷 上传照片 (加入云团)</span>
+                        <input type="file" id="photo-input" accept="image/*" multiple class="hidden">
+                    </label>
+                </div>
+            </div>
             
-            <!-- State: IDLE -->
-            <div id="state-idle" class="fade-in">
-                <h1 class="text-4xl text-yellow-100 font-dancing mb-2 text-glow">Starry Night</h1>
-                <p class="text-slate-200 text-sm mb-6 leading-relaxed">
-                   在文森特的星空下，<br/>让流动的星光为你写一首永恒的诗。
-                </p>
-                <button id="btn-generate" class="group relative inline-flex items-center justify-center px-8 py-3 text-lg font-medium text-slate-900 bg-yellow-400 rounded-full hover:bg-yellow-300 transition-all duration-300 ease-in-out hover:scale-105 hover:shadow-[0_0_20px_rgba(250,204,21,0.6)] cursor-pointer ring-2 ring-yellow-200/50">
-                    <i data-lucide="paintbrush" class="w-5 h-5 mr-2"></i>
-                    <span>Paint a Wish</span>
-                </button>
+            <div class="glass-panel px-4 py-2 rounded-full flex items-center">
+                <span id="gesture-indicator" class="status-dot dot-red"></span>
+                <span id="gesture-text" class="text-xs font-mono uppercase tracking-wider">No Hand Detected</span>
             </div>
-
-            <!-- State: GENERATING -->
-            <div id="state-generating" class="hidden py-8 flex flex-col items-center justify-center">
-                <div class="relative">
-                    <div class="absolute inset-0 bg-yellow-400 blur-xl opacity-20 animate-pulse"></div>
-                    <i data-lucide="loader-2" class="relative w-12 h-12 text-yellow-400 animate-spin mb-4 mx-auto"></i>
-                </div>
-                <p class="text-yellow-100 animate-pulse text-center mt-4 font-dancing text-xl">Weaving starlight...</p>
-            </div>
-
-            <!-- State: SUCCESS -->
-            <div id="state-success" class="hidden">
-                <h2 id="poem-title" class="text-2xl text-yellow-300 font-serif mb-4 font-bold tracking-wide text-glow"></h2>
-                <div class="relative mb-6">
-                    <i data-lucide="star" class="absolute -top-4 -left-2 w-6 h-6 text-yellow-400 fill-yellow-400 animate-pulse"></i>
-                    <p id="poem-content" class="text-slate-100 whitespace-pre-line leading-relaxed font-serif text-lg italic opacity-95 text-glow shadow-black"></p>
-                    <i data-lucide="star" class="absolute -bottom-4 -right-2 w-5 h-5 text-yellow-400 fill-yellow-400 animate-pulse delay-100"></i>
-                </div>
-                <button id="btn-reset" class="mt-4 flex items-center justify-center mx-auto text-sm text-yellow-200/80 hover:text-yellow-200 transition-colors cursor-pointer border border-yellow-500/30 px-4 py-2 rounded-full hover:bg-yellow-500/10">
-                    <i data-lucide="rotate-ccw" class="w-4 h-4 mr-2"></i>
-                    Another Dream
-                </button>
-            </div>
-
-             <!-- State: ERROR -->
-             <div id="state-error" class="hidden py-4">
-                <i data-lucide="alert-circle" class="w-8 h-8 text-red-400 mx-auto mb-2"></i>
-                <p id="error-msg" class="text-red-300 mb-4 text-sm">The stars are silent.</p>
-                <button id="btn-retry" class="text-sm text-yellow-400 underline cursor-pointer hover:text-yellow-300">Try Again</button>
-            </div>
-
         </div>
+
     </div>
 
-    <!-- 3. Silhouette Layer (Abstract Hills) -->
-    <div class="absolute bottom-0 left-0 w-full z-10 pointer-events-none">
-         <svg viewBox="0 0 1440 320" xmlns="http://www.w3.org/2000/svg" class="w-full h-auto drop-shadow-2xl opacity-90">
-             <path fill="#02040a" fill-opacity="1" d="M0,224L48,213.3C96,203,192,181,288,181.3C384,181,480,203,576,224C672,245,768,267,864,261.3C960,256,1056,224,1152,197.3C1248,171,1344,149,1392,138.7L1440,128L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path>
-             <!-- Cypress Tree approximation -->
-             <path d="M200,320 Q220,150 200,100 Q180,150 160,320 Z" fill="#000" />
-         </svg>
-    </div>
+    <!-- Webcam Feed (Hidden logic, visible UI) -->
+    <video id="video-feed" playsinline></video>
     
-    <!-- Silhouette of Couple -->
-    <div class="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-10 pointer-events-none opacity-80">
-        <svg width="200" height="150" viewBox="0 0 200 150" xmlns="http://www.w3.org/2000/svg">
-            <g transform="scale(0.8)">
-                 <path d="M60 150 L60 100 Q60 80 80 85 Q90 80 100 85 Q120 80 120 100 L120 150 Z" fill="#05081c" />
-                 <circle cx="80" cy="80" r="10" fill="#05081c" />
-                 <circle cx="100" cy="82" r="9" fill="#05081c" />
-            </g>
-        </svg>
-    </div>
+    <!-- 3D Canvas -->
+    <div id="canvas-container"></div>
 
-    <!-- APP LOGIC -->
     <script type="module">
-        import { GoogleGenAI, Type } from "https://esm.sh/@google/genai@0.1.0";
-
-        // Initialize Lucide Icons
-        try {
-            lucide.createIcons();
-        } catch (e) {
-            console.warn("Icons failed to load", e);
-        }
-
-        /* ================= VAN GOGH CANVAS ENGINE ================= */
-        const canvas = document.getElementById('starry-canvas');
-        const ctx = canvas.getContext('2d');
-        let width, height;
-        let particles = [];
-        let stars = [];
-        let time = 0;
-
-        // Configuration for "Starry Night" feel
+        import * as THREE from 'three';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+        
+        // --- Configuration ---
         const CONFIG = {
-            particleCount: 800,
-            starCount: 15,
-            bgTop: '#0b1026',
-            bgBottom: '#233253',
-            windColors: ['#3e5f8a', '#5b84b1', '#8fbde3', '#2b3a67'], // Blues and cyans
-            starColors: ['#fcd34d', '#fbbf24', '#f59e0b'], // Yellows and Oranges
+            colors: {
+                matteGreen: 0x0B6623,
+                darkGreen: 0x013220,
+                metallicGold: 0xFFD700,
+                christmasRed: 0x8B0000,
+                brightRed: 0xD40000
+            },
+            particleCount: 1200,
+            photoCount: 12, // Default placeholders
+            treeHeight: 30,
+            treeRadius: 10,
+            scatterRadius: 35
         };
 
-        function resize() {
-            width = window.innerWidth;
-            height = window.innerHeight;
-            canvas.width = width;
-            canvas.height = height;
-            init();
-        }
+        // --- Global State ---
+        const state = {
+            mode: 'TREE', // TREE, SCATTER, ZOOM
+            handPresent: false,
+            handPosition: { x: 0, y: 0 },
+            rotationVelocity: 0,
+            targetRotation: 0,
+            pinchStrength: 0,
+            targetZoomPhoto: null,
+            uploadedTextures: []
+        };
 
-        class WindParticle {
-            constructor() {
-                this.reset();
-                // Randomize start position to fill screen immediately
-                this.x = Math.random() * width;
-                this.y = Math.random() * height;
-            }
+        // --- 3D Scene Setup ---
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x050505, 0.02);
 
-            reset() {
-                this.x = Math.random() * width;
-                this.y = Math.random() * height;
-                this.life = Math.random() * 100 + 50;
-                this.speed = Math.random() * 0.5 + 0.2;
-                this.angle = Math.random() * Math.PI * 2;
-                this.color = CONFIG.windColors[Math.floor(Math.random() * CONFIG.windColors.length)];
-                this.width = Math.random() * 2 + 0.5;
-            }
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 0, 40);
 
-            update() {
-                // Flow field logic: angle depends on position (creates swirls)
-                const scale = 0.002;
-                const angleNoise = (Math.sin(this.x * scale) + Math.cos(this.y * scale * 1.5)) * Math.PI;
-                
-                // Van Gogh turbulence
-                this.angle += (angleNoise - this.angle) * 0.1;
+        const renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.toneMapping = THREE.ReinhardToneMapping;
+        container.appendChild(renderer.domElement);
 
-                this.x += Math.cos(this.angle) * this.speed + 0.2; // Slight bias to right
-                this.y += Math.sin(this.angle) * this.speed;
-                
-                this.life--;
+        // --- Post Processing (Bloom) ---
+        const renderScene = new RenderPass(scene, camera);
+        
+        const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
+        bloomPass.threshold = 0.2;
+        bloomPass.strength = 1.2; // 辉光强度
+        bloomPass.radius = 0.5;
 
-                if (this.life <= 0 || this.x > width || this.x < 0 || this.y > height || this.y < 0) {
-                    this.reset();
+        const composer = new EffectComposer(renderer);
+        composer.addPass(renderScene);
+        composer.addPass(bloomPass);
+
+        // --- Lighting ---
+        const ambientLight = new THREE.AmbientLight(0x404040, 2);
+        scene.add(ambientLight);
+
+        const dirLight = new THREE.DirectionalLight(0xfffaed, 2);
+        dirLight.position.set(10, 20, 10);
+        scene.add(dirLight);
+
+        const pointLight1 = new THREE.PointLight(CONFIG.colors.metallicGold, 3, 50);
+        pointLight1.position.set(0, 10, 0);
+        scene.add(pointLight1);
+
+        const pointLight2 = new THREE.PointLight(CONFIG.colors.christmasRed, 2, 50);
+        pointLight2.position.set(-10, -5, 10);
+        scene.add(pointLight2);
+
+        // --- Object Groups ---
+        const treeGroup = new THREE.Group();
+        scene.add(treeGroup);
+
+        // 1. Instanced Mesh for Ornaments (Spheres, Cubes)
+        const geometrySphere = new THREE.IcosahedronGeometry(0.6, 1);
+        const geometryCube = new THREE.BoxGeometry(0.8, 0.8, 0.8);
+        
+        const materialGold = new THREE.MeshStandardMaterial({ 
+            color: CONFIG.colors.metallicGold, 
+            roughness: 0.2, 
+            metalness: 0.9,
+            emissive: 0xaa6600,
+            emissiveIntensity: 0.2
+        });
+        const materialRed = new THREE.MeshStandardMaterial({ 
+            color: CONFIG.colors.christmasRed, 
+            roughness: 0.3, 
+            metalness: 0.5,
+            emissive: 0x440000,
+            emissiveIntensity: 0.4 
+        });
+        const materialGreen = new THREE.MeshStandardMaterial({ 
+            color: CONFIG.colors.matteGreen, 
+            roughness: 0.8, 
+            metalness: 0.1 
+        });
+
+        const instancedSpheresGold = new THREE.InstancedMesh(geometrySphere, materialGold, CONFIG.particleCount / 3);
+        const instancedSpheresRed = new THREE.InstancedMesh(geometrySphere, materialRed, CONFIG.particleCount / 3);
+        const instancedCubesGreen = new THREE.InstancedMesh(geometryCube, materialGreen, CONFIG.particleCount / 3);
+
+        treeGroup.add(instancedSpheresGold);
+        treeGroup.add(instancedSpheresRed);
+        treeGroup.add(instancedCubesGreen);
+
+        // Data arrays to store positions
+        const objectsData = []; // { mesh, index, treePos, scatterPos, currentPos, velocity }
+
+        function initInstancedObjects() {
+            const meshes = [instancedSpheresGold, instancedSpheresRed, instancedCubesGreen];
+            let totalIndex = 0;
+
+            meshes.forEach(mesh => {
+                const count = mesh.count;
+                const dummy = new THREE.Object3D();
+
+                for (let i = 0; i < count; i++) {
+                    // Tree Position (Cone Spiral)
+                    const theta = i * 0.5 + Math.random(); // Spiral angle
+                    const y = (i / count) * CONFIG.treeHeight - CONFIG.treeHeight / 2; // -Height/2 to Height/2
+                    const normalizedY = (y + CONFIG.treeHeight / 2) / CONFIG.treeHeight; // 0 to 1
+                    const radius = (1 - normalizedY) * CONFIG.treeRadius + 1; // Radius shrinks as Y goes up
+                    
+                    const tx = Math.cos(theta) * radius;
+                    const tz = Math.sin(theta) * radius;
+                    const ty = y;
+
+                    // Scatter Position (Sphere Random)
+                    const u = Math.random();
+                    const v = Math.random();
+                    const phi = Math.acos(2 * u - 1) - Math.PI / 2;
+                    const lambda = 2 * Math.PI * v;
+                    const sr = CONFIG.scatterRadius * Math.cbrt(Math.random()); // Random inside sphere
+                    
+                    const sx = sr * Math.cos(phi) * Math.cos(lambda);
+                    const sy = sr * Math.cos(phi) * Math.sin(lambda);
+                    const sz = sr * Math.sin(phi);
+
+                    // Initialize
+                    dummy.position.set(tx, ty, tz);
+                    dummy.scale.setScalar(Math.random() * 0.5 + 0.5);
+                    dummy.updateMatrix();
+                    mesh.setMatrixAt(i, dummy.matrix);
+
+                    objectsData.push({
+                        type: 'instanced',
+                        mesh: mesh,
+                        index: i,
+                        treePos: new THREE.Vector3(tx, ty, tz),
+                        scatterPos: new THREE.Vector3(sx, sy, sz),
+                        currentPos: new THREE.Vector3(tx, ty, tz),
+                        dummy: dummy,
+                        wobble: Math.random() * Math.PI
+                    });
+                    totalIndex++;
                 }
-            }
+            });
+        }
+        initInstancedObjects();
 
-            draw(ctx) {
-                ctx.beginPath();
-                // Draw short "brush strokes"
-                ctx.moveTo(this.x, this.y);
-                const tailLen = 10 * this.speed;
-                ctx.lineTo(this.x - Math.cos(this.angle) * tailLen, this.y - Math.sin(this.angle) * tailLen);
-                ctx.strokeStyle = this.color;
-                ctx.lineWidth = this.width;
-                ctx.lineCap = 'round';
-                ctx.globalAlpha = 0.6;
-                ctx.stroke();
-                ctx.globalAlpha = 1.0;
-            }
+        // 2. Photos (Planes)
+        const photoObjects = [];
+        const photoGroup = new THREE.Group();
+        treeGroup.add(photoGroup);
+
+        function createPhotoMesh(texture) {
+            const geometry = new THREE.PlaneGeometry(4, 4);
+            const material = new THREE.MeshBasicMaterial({ 
+                map: texture, 
+                side: THREE.DoubleSide,
+                transparent: true,
+                opacity: 0.9
+            });
+            const mesh = new THREE.Mesh(geometry, material);
+            
+            // Add a golden frame
+            const frameGeo = new THREE.BoxGeometry(4.2, 4.2, 0.1);
+            const frameMat = new THREE.MeshStandardMaterial({ color: 0xFFD700, metalness: 1.0, roughness: 0.2 });
+            const frame = new THREE.Mesh(frameGeo, frameMat);
+            frame.position.z = -0.06;
+            mesh.add(frame);
+
+            return mesh;
         }
 
-        class VanGoghStar {
-            constructor() {
-                this.x = Math.random() * width;
-                this.y = Math.random() * height * 0.6; // Top 60% only
-                this.radius = Math.random() * 4 + 2;
-                this.color = CONFIG.starColors[Math.floor(Math.random() * CONFIG.starColors.length)];
-                this.pulseOffset = Math.random() * Math.PI * 2;
-            }
-
-            draw(ctx, t) {
-                // Glow rings (Dashed)
-                const pulse = Math.sin(t * 2 + this.pulseOffset);
-                
-                ctx.save();
-                ctx.translate(this.x, this.y);
-                
-                // Core
-                ctx.beginPath();
-                ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
-                ctx.fillStyle = this.color;
-                ctx.shadowBlur = 15;
-                ctx.shadowColor = this.color;
-                ctx.fill();
-                ctx.shadowBlur = 0;
-
-                // Rings (Brush strokes)
-                ctx.strokeStyle = this.color;
-                ctx.globalAlpha = 0.3;
-                const rings = 3;
-                for (let i = 1; i <= rings; i++) {
-                    ctx.beginPath();
-                    const r = this.radius * 2 * i + pulse * 2;
-                    ctx.setLineDash([5, 10]); // Dashed lines
-                    ctx.lineDashOffset = -t * 10 * (i % 2 === 0 ? 1 : -1); // Rotate rings
-                    ctx.arc(0, 0, r, 0, Math.PI * 2);
-                    ctx.stroke();
-                }
-
-                ctx.restore();
-            }
+        // Placeholder Textures Generator
+        function generatePlaceholderTexture(color, text) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256;
+            canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = color;
+            ctx.fillRect(0,0,256,256);
+            ctx.fillStyle = 'white';
+            ctx.font = '40px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, 128, 128);
+            return new THREE.CanvasTexture(canvas);
         }
 
-        function init() {
-            particles = [];
-            stars = [];
-            for (let i = 0; i < CONFIG.particleCount; i++) {
-                particles.push(new WindParticle());
-            }
-            for (let i = 0; i < CONFIG.starCount; i++) {
-                stars.push(new VanGoghStar());
-            }
+        // Initialize default photos
+        const defaultColors = ['#8B0000', '#0B6623', '#1A237E', '#4A148C'];
+        for(let i=0; i<CONFIG.photoCount; i++) {
+            const tex = generatePlaceholderTexture(defaultColors[i % 4], `Photo ${i+1}`);
+            addPhotoToScene(tex, i);
         }
+
+        function addPhotoToScene(texture, index) {
+            const mesh = createPhotoMesh(texture);
+            photoGroup.add(mesh);
+
+            // Calc positions similar to instances
+            const total = CONFIG.photoCount;
+            const y = (index / total) * (CONFIG.treeHeight * 0.8) - CONFIG.treeHeight / 2.5;
+            const normalizedY = (y + CONFIG.treeHeight / 2) / CONFIG.treeHeight;
+            const radius = ((1 - normalizedY) * CONFIG.treeRadius) + 2; 
+            const theta = index * (Math.PI * 2 / 3); // 3 spirals
+
+            const tx = Math.cos(theta) * radius;
+            const tz = Math.sin(theta) * radius;
+            const ty = y;
+
+            const sx = (Math.random() - 0.5) * CONFIG.scatterRadius * 1.5;
+            const sy = (Math.random() - 0.5) * CONFIG.scatterRadius * 1.5;
+            const sz = (Math.random() - 0.5) * CONFIG.scatterRadius * 0.5 + 10; // Closer to camera in scatter
+
+            const data = {
+                type: 'photo',
+                mesh: mesh,
+                treePos: new THREE.Vector3(tx, ty, tz),
+                scatterPos: new THREE.Vector3(sx, sy, sz),
+                currentPos: new THREE.Vector3(tx, ty, tz),
+                zoomPos: new THREE.Vector3(0, 0, 15), // Close up position
+                isZoomTarget: false
+            };
+            
+            // Initial Pos
+            mesh.position.copy(data.treePos);
+            mesh.lookAt(0, y, 0); // Look at center pole
+            
+            objectsData.push(data);
+            photoObjects.push(data);
+        }
+
+        // 3. The Star
+        const starGeo = new THREE.OctahedronGeometry(1.5, 0);
+        const starMat = new THREE.MeshBasicMaterial({ color: 0xFFFFFF });
+        const starMesh = new THREE.Mesh(starGeo, starMat);
+        starMesh.position.y = CONFIG.treeHeight / 2 + 1;
+        treeGroup.add(starMesh);
+
+        // Add star glow sprite
+        const spriteMap = new THREE.TextureLoader().load( 'https://threejs.org/examples/textures/sprites/spark1.png' );
+        const spriteMaterial = new THREE.SpriteMaterial( { map: spriteMap, color: 0xffffee, transparent: true, blending: THREE.AdditiveBlending } );
+        const sprite = new THREE.Sprite( spriteMaterial );
+        sprite.scale.set(10, 10, 1);
+        starMesh.add( sprite );
+
+
+        // --- File Upload Logic ---
+        document.getElementById('photo-input').addEventListener('change', (e) => {
+            const files = e.target.files;
+            if (!files.length) return;
+
+            // Remove old placeholders if it's the first upload
+            if (state.uploadedTextures.length === 0) {
+                 photoObjects.forEach(p => {
+                     p.mesh.visible = false; // Hide old ones for now
+                     // In a real app we'd dispose geometry/material
+                 });
+                 // We reuse the positions of the hidden/removed objects or create new ones
+            }
+
+            Array.from(files).forEach((file, i) => {
+                const url = URL.createObjectURL(file);
+                new THREE.TextureLoader().load(url, (tex) => {
+                    tex.colorSpace = THREE.SRGBColorSpace;
+                    state.uploadedTextures.push(tex);
+                    
+                    // Replace a placeholder or add new
+                    const targetIndex = (state.uploadedTextures.length - 1) % photoObjects.length;
+                    const targetObj = photoObjects[targetIndex];
+                    
+                    targetObj.mesh.material.map = tex;
+                    targetObj.mesh.material.needsUpdate = true;
+                    targetObj.mesh.visible = true;
+                });
+            });
+        });
+
+        // --- Logic: Update Visuals ---
+        const clock = new THREE.Clock();
 
         function animate() {
-            // Semi-transparent clear for trails? No, complete repaint for brush style usually better, 
-            // but let's do a dark fade to keep colors rich.
-            // Create Gradient Background
-            const grad = ctx.createLinearGradient(0, 0, 0, height);
-            grad.addColorStop(0, CONFIG.bgTop);
-            grad.addColorStop(1, CONFIG.bgBottom);
-            ctx.fillStyle = grad;
-            ctx.fillRect(0, 0, width, height);
-
-            time += 0.01;
-
-            // Draw Wind
-            particles.forEach(p => {
-                p.update();
-                p.draw(ctx);
-            });
-
-            // Draw Stars
-            stars.forEach(s => s.draw(ctx, time));
-
             requestAnimationFrame(animate);
-        }
 
-        /* ================= GEMINI LOGIC ================= */
-        // Configuration
-        // ⚠️⚠️⚠️ PLEASE PASTE YOUR API KEY BELOW ⚠️⚠️⚠️
-        const API_KEY = 'YOUR_API_KEY_HERE'; 
-        
-        const els = {
-            idle: document.getElementById('state-idle'),
-            generating: document.getElementById('state-generating'),
-            success: document.getElementById('state-success'),
-            error: document.getElementById('state-error'),
-            errorMsg: document.getElementById('error-msg'),
-            poemTitle: document.getElementById('poem-title'),
-            poemContent: document.getElementById('poem-content'),
-            btnGenerate: document.getElementById('btn-generate'),
-            btnReset: document.getElementById('btn-reset'),
-            btnRetry: document.getElementById('btn-retry')
-        };
+            const time = clock.getElapsedTime();
+            const dt = clock.getDelta();
 
-        function setView(view) {
-            // Hide all
-            ['idle', 'generating', 'success', 'error'].forEach(v => {
-                const el = els[v];
-                if (v === view) {
-                    el.classList.remove('hidden');
-                    el.classList.add('fade-in');
-                } else {
-                    el.classList.add('hidden');
-                    el.classList.remove('fade-in');
+            // 1. Star Rotation
+            starMesh.rotation.y = time;
+            sprite.material.opacity = 0.5 + Math.sin(time * 3) * 0.2;
+
+            // 2. Camera / Group Rotation based on hand
+            if (state.mode === 'SCATTER' && state.handPresent) {
+                // Smoothly interpolate rotation velocity based on hand x
+                const targetVel = (state.handPosition.x - 0.5) * 2.0; // -1 to 1
+                state.rotationVelocity += (targetVel - state.rotationVelocity) * 0.05;
+            } else {
+                // Auto rotate slowly if no hand or in tree mode
+                state.rotationVelocity += (0.1 - state.rotationVelocity) * 0.02;
+            }
+            
+            treeGroup.rotation.y += state.rotationVelocity * 0.05;
+
+
+            // 3. Particle & Photo Interpolation
+            objectsData.forEach(obj => {
+                let target;
+
+                if (state.mode === 'TREE') {
+                    target = obj.treePos;
+                } else if (state.mode === 'SCATTER') {
+                    target = obj.scatterPos;
+                } else if (state.mode === 'ZOOM') {
+                    if (obj.isZoomTarget) {
+                        // The specific photo being zoomed
+                        // We need to counter-rotate position so it stays in front of camera
+                        // Or easier: attach it to camera? 
+                        // For this demo: move it to a world position near camera and look at camera
+                        
+                        // Simple approach: Move to calculated world position
+                        const camDir = new THREE.Vector3();
+                        camera.getWorldDirection(camDir);
+                        target = camera.position.clone().add(camDir.multiplyScalar(10));
+                    } else {
+                        // Push others away slightly or keep scattered
+                        target = obj.scatterPos;
+                    }
+                }
+
+                // Interpolate Position
+                const lerpFactor = 0.05;
+                obj.currentPos.lerp(target, lerpFactor);
+
+                // Add some floating noise
+                const noiseY = Math.sin(time + obj.wobble) * 0.05;
+
+                // Update Mesh
+                if (obj.type === 'instanced') {
+                    obj.dummy.position.copy(obj.currentPos);
+                    obj.dummy.position.y += noiseY;
+                    
+                    if (state.mode === 'TREE') {
+                        // Look away from center
+                        obj.dummy.lookAt(obj.dummy.position.clone().multiplyScalar(2));
+                    } else {
+                        obj.dummy.rotation.x += 0.01;
+                        obj.dummy.rotation.y += 0.01;
+                    }
+
+                    obj.dummy.updateMatrix();
+                    obj.mesh.setMatrixAt(obj.index, obj.dummy.matrix);
+                } else if (obj.type === 'photo') {
+                    obj.mesh.position.copy(obj.currentPos);
+                    obj.mesh.position.y += noiseY;
+
+                    if (state.mode === 'ZOOM' && obj.isZoomTarget) {
+                        obj.mesh.lookAt(camera.position);
+                        // Scale up
+                        obj.mesh.scale.lerp(new THREE.Vector3(2, 2, 2), 0.1);
+                    } else if (state.mode === 'TREE') {
+                        obj.mesh.lookAt(0, obj.mesh.position.y, 0);
+                        obj.mesh.scale.lerp(new THREE.Vector3(1, 1, 1), 0.1);
+                    } else {
+                        // Scatter mode: slow rotation
+                        obj.mesh.lookAt(camera.position);
+                        obj.mesh.scale.lerp(new THREE.Vector3(1, 1, 1), 0.1);
+                    }
                 }
             });
+
+            // Mark instance matrices as needing update
+            instancedSpheresGold.instanceMatrix.needsUpdate = true;
+            instancedSpheresRed.instanceMatrix.needsUpdate = true;
+            instancedCubesGreen.instanceMatrix.needsUpdate = true;
+
+            composer.render();
         }
 
-        async function generatePoem() {
-            console.log("Generate clicked...");
-            
-            // 1. Validation
-            if (!API_KEY || API_KEY.includes('YOUR_API_KEY')) {
-                els.errorMsg.innerText = "Please open the HTML file and set your API_KEY in the code (Line 164).";
-                setView('error');
-                return;
-            }
+        // --- MediaPipe Logic ---
+        const videoElement = document.getElementById('video-feed');
+        const gestureIndicator = document.getElementById('gesture-indicator');
+        const gestureText = document.getElementById('gesture-text');
+        
+        function onResults(results) {
+            document.getElementById('loader').style.opacity = '0';
+            setTimeout(() => document.getElementById('loader').style.display = 'none', 500);
 
-            setView('generating');
-
-            try {
-                // 2. Client Init
-                const ai = new GoogleGenAI({ apiKey: API_KEY });
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                const landmarks = results.multiHandLandmarks[0];
+                state.handPresent = true;
                 
-                // 3. API Call
-                // Using gemini-2.5-flash for speed or pro for quality.
-                const response = await ai.models.generateContent({
-                    model: "gemini-3-flash-preview",
-                    contents: "Write a short, deeply romantic poem in Chinese (with a title) inspired by Van Gogh's 'The Starry Night'. The tone should be swirling, emotional, and eternal.",
-                    config: {
-                        responseMimeType: "application/json",
-                        responseSchema: {
-                            type: Type.OBJECT,
-                            properties: {
-                                title: { type: Type.STRING },
-                                content: { type: Type.STRING }
-                            },
-                            required: ["title", "content"]
+                // Get normalized coordinates
+                // MediaPipe: x (0 left, 1 right), y (0 top, 1 bottom)
+                // We map this to control UI
+                const wrist = landmarks[0];
+                const indexTip = landmarks[8];
+                const middleTip = landmarks[12];
+                const thumbTip = landmarks[4];
+                const ringTip = landmarks[16];
+                const pinkyTip = landmarks[20];
+
+                state.handPosition.x = 1 - wrist.x; // Mirror effect
+                state.handPosition.y = wrist.y;
+
+                // 1. Calculate Openness (Distance of tips from wrist)
+                const tips = [indexTip, middleTip, ringTip, pinkyTip];
+                let avgDist = 0;
+                tips.forEach(tip => {
+                    const d = Math.sqrt(Math.pow(tip.x - wrist.x, 2) + Math.pow(tip.y - wrist.y, 2));
+                    avgDist += d;
+                });
+                avgDist /= 4;
+
+                // 2. Calculate Pinch (Thumb to Index)
+                const pinchDist = Math.sqrt(Math.pow(thumbTip.x - indexTip.x, 2) + Math.pow(thumbTip.y - indexTip.y, 2));
+
+                // --- State Machine Logic ---
+                
+                // Priority 1: Pinch (Grab Photo)
+                if (pinchDist < 0.05) {
+                    if (state.mode === 'SCATTER' || state.mode === 'ZOOM') {
+                        setMode('ZOOM');
+                        updateStatus('dot-gold', 'GRABBING PHOTO');
+                        
+                        // If we haven't selected a photo yet, pick the one closest to "hand projection" or center
+                        if (!state.targetZoomPhoto) {
+                            // Simple logic: Pick random or closest to center of screen
+                            // For true interactivity, we'd project hand x/y to raycaster
+                            // Here: Pick closest photo to camera in SCATTER mode
+                            let closest = null;
+                            let minD = Infinity;
+                            photoObjects.forEach(p => {
+                                const d = p.mesh.position.distanceTo(camera.position);
+                                if(d < minD) { minD = d; closest = p; }
+                            });
+                            state.targetZoomPhoto = closest;
+                            if(closest) closest.isZoomTarget = true;
                         }
                     }
-                });
-
-                // 4. Parsing
-                console.log("Response received", response);
-                const text = response.text;
-                const data = JSON.parse(text);
+                } 
+                // Priority 2: Fist (Close Tree)
+                else if (avgDist < 0.25) { 
+                    setMode('TREE');
+                    updateStatus('dot-green', 'TREE FORM (CLOSED)');
+                    resetZoom();
+                } 
+                // Priority 3: Open Hand (Scatter)
+                else if (avgDist > 0.35) {
+                    if (state.mode !== 'ZOOM') { // Don't break zoom easily
+                        setMode('SCATTER');
+                        updateStatus('dot-red', 'SCATTER FORM (OPEN)');
+                        resetZoom();
+                    }
+                }
                 
-                els.poemTitle.textContent = data.title;
-                els.poemContent.textContent = data.content;
-                setView('success');
+                // Handle Zoom exit if hand opens wide
+                if (state.mode === 'ZOOM' && avgDist > 0.5) {
+                    setMode('SCATTER');
+                    resetZoom();
+                }
 
-            } catch (error) {
-                console.error("Gemini Error:", error);
-                
-                let msg = "The stars were silent. Check console for details.";
-                if (error.message && error.message.includes("403")) msg = "Invalid API Key.";
-                if (error.message && error.message.includes("Failed to fetch")) msg = "Network error. Check your connection.";
-
-                els.errorMsg.innerText = msg;
-                setView('error');
+            } else {
+                state.handPresent = false;
+                updateStatus('dot-red', 'NO HAND DETECTED');
             }
         }
 
-        /* ================= STARTUP ================= */
-        // Listeners
-        if (els.btnGenerate) els.btnGenerate.addEventListener('click', generatePoem);
-        if (els.btnReset) els.btnReset.addEventListener('click', () => setView('idle'));
-        if (els.btnRetry) els.btnRetry.addEventListener('click', () => setView('idle'));
+        function setMode(newMode) {
+            if (state.mode === newMode) return;
+            state.mode = newMode;
+        }
 
-        // Start Canvas
-        window.addEventListener('resize', resize);
-        resize(); // Inits and starts animation
+        function resetZoom() {
+            state.targetZoomPhoto = null;
+            photoObjects.forEach(p => p.isZoomTarget = false);
+        }
+
+        function updateStatus(colorClass, text) {
+            gestureIndicator.className = `status-dot ${colorClass}`;
+            gestureText.innerText = text;
+        }
+
+        // Initialize MediaPipe
+        const hands = new Hands({locateFile: (file) => {
+            return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+        }});
+
+        hands.setOptions({
+            maxNumHands: 1,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5
+        });
+
+        hands.onResults(onResults);
+
+        const cameraUtils = new Camera(videoElement, {
+            onFrame: async () => {
+                await hands.send({image: videoElement});
+            },
+            width: 320,
+            height: 240
+        });
+        
+        cameraUtils.start();
+
+        // Window Resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            composer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Start Loop
         animate();
-
-        console.log("Starry Night loaded.");
 
     </script>
 </body>
